@@ -11,6 +11,7 @@ import (
 	"go/parser"
 	"go/token"
 	"math"
+	"path"
 	"strconv"
 	"strings"
 	"unicode"
@@ -63,6 +64,8 @@ type goImportPath interface {
 	String() string
 	Ident(string) protogen.GoIdent
 }
+
+const gamedataPackageName = "gamedata"
 
 // GenerateFile generates the contents of a .pb.go file.
 func GenerateFile(gen *protogen.Plugin, file *protogen.File) *protogen.GeneratedFile {
@@ -323,6 +326,9 @@ func genMessage(g *protogen.GeneratedFile, f *fileInfo, m *messageInfo) {
 	g.Annotate(m.GoIdent.GoName, m.Location)
 	leadingComments := appendDeprecationSuffix(m.Comments.Leading,
 		m.Desc.Options().(*descriptorpb.MessageOptions).GetDeprecated())
+	if path.Base(string(m.GoIdent.GoImportPath)) == gamedataPackageName {
+		g.P("type ", m.GoIdent, "List []*", m.GoIdent)
+	}
 	g.P(leadingComments,
 		"type ", m.GoIdent, " struct {")
 	genMessageFields(g, f, m)
@@ -398,6 +404,10 @@ func genMessageField(g *protogen.GeneratedFile, f *fileInfo, m *messageInfo, fie
 	goType, pointer := fieldGoType(g, f, field)
 	if pointer {
 		goType = "*" + goType
+	}
+	// make gamedata list for findById
+	if goType[:3] == "[]*" && path.Base(string(field.Message.GoIdent.GoImportPath)) == gamedataPackageName {
+		goType = goType[3:] + "List"
 	}
 	tags := structTags{
 		{"protobuf", fieldProtobufTagValue(field)},
@@ -582,6 +592,26 @@ func genMessageGetterMethods(g *protogen.GeneratedFile, f *fileInfo, m *messageI
 			g.P("return ", defaultValue)
 			g.P("}")
 		default:
+			if field.GoName == "Id" && path.Base(string(m.GoIdent.GoImportPath)) == gamedataPackageName {
+				g.P(leadingComments, "func (x ", m.GoIdent, "List) FindById (id ", goType, ") (*", m.GoIdent, ", bool) {")
+				g.P("for _, xx := range x {")
+				g.P("if xx.Id == id {")
+				g.P("return xx, true")
+				g.P("}")
+				g.P("}")
+				g.P("return nil, false")
+				g.P("}")
+				g.P()
+
+				g.P(leadingComments, "func (x ", m.GoIdent, "List) Get (id ", goType, ") *", m.GoIdent, "{")
+				g.P("xx, ok := x.FindById(id)")
+				g.P("if ok {")
+				g.P("return xx")
+				g.P("}")
+				g.P("panic(\"Not exist: ", m.GoIdent, "\")")
+				g.P("}")
+				g.P()
+			}
 			g.P(leadingComments, "func (x *", m.GoIdent, ") Get", field.GoName, "() ", goType, " {")
 			if !field.Desc.HasPresence() || defaultValue == "nil" {
 				g.P("if x != nil {")
