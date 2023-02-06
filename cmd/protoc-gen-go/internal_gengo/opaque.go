@@ -1046,12 +1046,72 @@ func opaqueGenOneofWrapperTypes(g *protogen.GeneratedFile, f *fileInfo, message 
 				trailingComment(field.Comments.Trailing))
 			g.P("}")
 			g.P()
+
+			opaqueGenOneofConstructor(g, f, message, field)
 		}
 		for _, field := range oneof.Fields {
 			g.P("func (*", opaqueFieldOneofType(field, message.isOpaque()), ") ", ifName, "() {}")
 			g.P()
 		}
 	}
+}
+
+func opaqueGenOneofConstructor(g *protogen.GeneratedFile, f *fileInfo, message *messageInfo, field *protogen.Field) {
+	if field.Message != nil {
+		params := make([]string, len(field.Message.Fields))
+		for i := 0; i < len(field.Message.Fields); i++ {
+			curField := field.Message.Fields[i]
+			if curField.Oneof != nil {
+				// Skip if there is a nested oneof in the message
+				return
+			}
+			params[i] = makeParam(g, f, curField)
+		}
+		g.P("func New", message.GoIdent.GoName, field.GoName, "(", strings.Join(params, ","), ") *", message.GoIdent, " {")
+		if message.isOpen() {
+			g.P("return &", message.GoIdent, "{")
+			g.P(field.Oneof.GoName, ": &", field.GoIdent, "{")
+			g.P(field.GoName, ": &", field.Message.GoIdent, "{")
+			for i := 0; i < len(field.Message.Fields); i++ {
+				f := field.Message.Fields[i]
+				g.P(f.GoName, ": p", f.GoName, ",")
+			}
+			g.P("},")
+			g.P("},")
+			g.P("}")
+		} else {
+			g.P("return ", message.GoIdent, genid.BuilderSuffix_goname, "{")
+			if len(params) > 0 {
+				g.P(field.GoName, ": ", field.Message.GoIdent, genid.BuilderSuffix_goname)
+				for i := 0; i < len(field.Message.Fields); i++ {
+					f := field.Message.Fields[i]
+					g.P(f.GoName, ": p", f.GoName, ",")
+				}
+				g.P("}.Build(),")
+			} else {
+				g.P(field.GoName, ": &", field.Message.GoIdent, "{},")
+			}
+			g.P("}.Build()")
+		}
+		g.P("}")
+
+	} else {
+		goType, _ := opaqueFieldGoType(g, f, message, field)
+		g.P("func New", message.GoIdent.GoName, field.GoName, "(p ", goType, ") *", message.GoIdent.GoName, " {")
+		if message.isOpen() {
+			g.P("return &", message.GoIdent.GoName, "{")
+			g.P(field.Oneof.GoName, ": &", field.GoIdent, "{")
+			g.P(field.GoName, ": p,")
+			g.P("},")
+			g.P("}")
+		} else {
+			g.P("return ", message.GoIdent.GoName, genid.BuilderSuffix_goname, "{")
+			g.P(field.GoName, ": &p,")
+			g.P("}.Build()")
+		}
+		g.P("}")
+	}
+	g.P()
 }
 
 // opaqueFieldGoType returns the Go type used for a field.
