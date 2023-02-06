@@ -843,6 +843,39 @@ func genMessageOneofWrapperTypes(g *protogen.GeneratedFile, f *fileInfo, m *mess
 				trailingComment(field.Comments.Trailing))
 			g.P("}")
 			g.P()
+
+			ty, _ := fieldGoType(g, f, field)
+			ty = strings.ReplaceAll(ty, "*", "")
+
+			if field.Message != nil {
+				params := make([]string, len(field.Message.Fields))
+				for i := 0; i < len(field.Message.Fields); i++ {
+					ty, isPtr := fieldGoType(g, f, field.Message.Fields[i])
+					params[i] = makeParam("p"+field.Message.Fields[i].GoName, ty, isPtr)
+				}
+				g.P(fmt.Sprintf("func New%s%s (%s) *%s {", m.GoIdent.GoName, field.GoName, strings.Join(params, ","), m.GoIdent.GoName))
+				g.P(fmt.Sprintf("return &%s {", m.GoIdent.GoName))
+				g.P(fmt.Sprintf("%s: &%s {", field.Oneof.GoName, field.GoIdent.GoName))
+				g.P(fmt.Sprintf("%s: &%s{", field.GoName, ty))
+				for i := 0; i < len(field.Message.Fields); i++ {
+					f := field.Message.Fields[i]
+					g.P(fmt.Sprintf("%s: p%s,", f.GoName, f.GoName))
+				}
+				g.P("},")
+				g.P("},")
+				g.P("}")
+				g.P("}")
+			} else {
+				g.P(fmt.Sprintf("func New%s%s (p %s) *%s {", m.GoIdent.GoName, field.GoName, ty, m.GoIdent.GoName))
+				g.P(fmt.Sprintf("return &%s {", m.GoIdent.GoName))
+				g.P(fmt.Sprintf("%s: &%s {", field.Oneof.GoName, field.GoIdent.GoName))
+				g.P(fmt.Sprintf("%s: p,", field.GoName))
+				g.P("},")
+				g.P("}")
+				g.P("}")
+			}
+
+			g.P()
 		}
 		for _, field := range oneof.Fields {
 			g.P("func (*", field.GoIdent, ") ", ifName, "() {}")
@@ -911,4 +944,12 @@ func (c trailingComment) String() string {
 		return ""
 	}
 	return s
+}
+
+func makeParam(name, ty string, isPtr bool) string {
+	f := "%s %s"
+	if isPtr {
+		f = "%s *%s"
+	}
+	return fmt.Sprintf(f, name, ty)
 }
