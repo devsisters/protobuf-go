@@ -870,8 +870,7 @@ func genMessageOneofWrapperTypes(g *protogen.GeneratedFile, f *fileInfo, m *mess
 			if field.Message != nil {
 				params := make([]string, len(field.Message.Fields))
 				for i := 0; i < len(field.Message.Fields); i++ {
-					ty, isPtr := fieldGoType(g, f, field.Message.Fields[i])
-					params[i] = makeParam("p"+field.Message.Fields[i].GoName, ty, isPtr)
+					params[i] = makeParam(g, f, field.Message.Fields[i])
 				}
 				g.P(fmt.Sprintf("func New%s%s (%s) *%s {", m.GoIdent.GoName, field.GoName, strings.Join(params, ","), m.GoIdent.GoName))
 				g.P(fmt.Sprintf("return &%s {", m.GoIdent.GoName))
@@ -970,10 +969,11 @@ func (c trailingComment) String() string {
 	return s
 }
 
-func makeParam(name, ty string, isPtr bool) string {
-	f := "%s %s"
+func makeParam(g *protogen.GeneratedFile, f *fileInfo, field *protogen.Field) string {
+	ty, isPtr := fieldGoType(g, f, field)
+	format := "p%s %s"
 	if isPtr {
-		f = "%s *%s"
+		format = "p%s *%s"
 	}
-	return fmt.Sprintf(f, name, ty)
+	return fmt.Sprintf(format, field.GoName, ty)
 }
