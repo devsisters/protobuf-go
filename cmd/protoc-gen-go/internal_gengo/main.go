@@ -856,7 +856,7 @@ func genMessageOneofWrapperTypes(g *protogen.GeneratedFile, f *fileInfo, m *mess
 				g.P(fmt.Sprintf("func New%s%s (%s) *%s {", m.GoIdent.GoName, field.GoName, strings.Join(params, ","), m.GoIdent.GoName))
 				g.P(fmt.Sprintf("return &%s {", m.GoIdent.GoName))
 				g.P(fmt.Sprintf("%s: &%s {", field.Oneof.GoName, field.GoIdent.GoName))
-				g.P(fmt.Sprintf("%s: &%s{", field.GoName, ty))
+				g.P(fmt.Sprintf("%s: &%s {", field.GoName, ty))
 				for i := 0; i < len(field.Message.Fields); i++ {
 					f := field.Message.Fields[i]
 					g.P(fmt.Sprintf("%s: p%s,", f.GoName, f.GoName))
