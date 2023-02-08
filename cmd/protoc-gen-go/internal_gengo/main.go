@@ -863,11 +863,25 @@ func genMessageOneofWrapperTypes(g *protogen.GeneratedFile, f *fileInfo, m *mess
 		if oneof.Desc.IsSynthetic() {
 			continue
 		}
+
+		typedTypeName := oneof.GoIdent.GoName + "Type"
+		g.P("type ", typedTypeName, " string")
+		g.P()
+
 		ifName := oneofInterfaceName(oneof)
 		g.P("type ", ifName, " interface {")
 		g.P(ifName, "()")
+		g.P("Type() ", typedTypeName)
 		g.P("}")
 		g.P()
+
+		g.P("const (")
+		for _, field := range oneof.Fields {
+			g.P(fmt.Sprintf("%s_%s %s = \"%s\"", typedTypeName, field.GoName, typedTypeName, field.GoIdent.GoName))
+		}
+		g.P(")")
+		g.P("")
+
 		for _, field := range oneof.Fields {
 			g.AnnotateSymbol(field.GoIdent.GoName, protogen.Annotation{Location: field.Location})
 			g.AnnotateSymbol(field.GoIdent.GoName+"."+field.GoName, protogen.Annotation{Location: field.Location})
@@ -925,11 +939,13 @@ func genMessageOneofWrapperTypes(g *protogen.GeneratedFile, f *fileInfo, m *mess
 				g.P("}")
 				g.P("}")
 			}
-
 			g.P()
 		}
 		for _, field := range oneof.Fields {
 			g.P("func (*", field.GoIdent, ") ", ifName, "() {}")
+			g.P()
+
+			g.P(fmt.Sprintf("func (*%s) Type() %s { return \"%s\" }", field.GoIdent.GoName, typedTypeName, field.GoIdent.GoName))
 			g.P()
 		}
 	}

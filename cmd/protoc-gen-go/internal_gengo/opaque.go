@@ -1020,11 +1020,25 @@ func opaqueGenOneofWrapperTypes(g *protogen.GeneratedFile, f *fileInfo, message 
 		if oneof.Desc.IsSynthetic() {
 			continue
 		}
+
+		typedTypeName := oneof.GoIdent.GoName + "Type"
+		g.P("type ", typedTypeName, " string")
+		g.P()
+
 		ifName := opaqueOneofInterfaceName(oneof)
 		g.P("type ", ifName, " interface {")
 		g.P(ifName, "()")
+		g.P("Type() ", typedTypeName)
 		g.P("}")
 		g.P()
+
+		g.P("const (")
+		for _, field := range oneof.Fields {
+			g.P(typedTypeName, "_", field.GoName, " ", typedTypeName, " = \"", field.GoIdent.GoName, "\"")
+		}
+		g.P(")")
+		g.P()
+
 		for _, field := range oneof.Fields {
 			name := opaqueFieldOneofType(field, message.isOpaque())
 			g.AnnotateSymbol(name.GoName, protogen.Annotation{Location: field.Location})
@@ -1051,6 +1065,9 @@ func opaqueGenOneofWrapperTypes(g *protogen.GeneratedFile, f *fileInfo, message 
 		}
 		for _, field := range oneof.Fields {
 			g.P("func (*", opaqueFieldOneofType(field, message.isOpaque()), ") ", ifName, "() {}")
+			g.P()
+
+			g.P("func (*", opaqueFieldOneofType(field, message.isOpaque()), ") Type() ", typedTypeName, " { return ", typedTypeName, "_", field.GoName, " }")
 			g.P()
 		}
 	}
