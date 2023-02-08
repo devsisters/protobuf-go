@@ -842,6 +842,7 @@ func genMessageOneofWrapperTypes(g *protogen.GeneratedFile, f *fileInfo, m *mess
 		ifName := oneofInterfaceName(oneof)
 		g.P("type ", ifName, " interface {")
 		g.P(ifName, "()")
+		g.P("Type() string")
 		g.P("}")
 		g.P()
 		for _, field := range oneof.Fields {
@@ -893,11 +894,13 @@ func genMessageOneofWrapperTypes(g *protogen.GeneratedFile, f *fileInfo, m *mess
 				g.P("}")
 				g.P("}")
 			}
-
 			g.P()
 		}
 		for _, field := range oneof.Fields {
 			g.P("func (*", field.GoIdent, ") ", ifName, "() {}")
+			g.P()
+
+			g.P(fmt.Sprintf("func (*%s) Type() string { return \"%s\" }", field.GoIdent.GoName, field.GoIdent.GoName))
 			g.P()
 		}
 	}
