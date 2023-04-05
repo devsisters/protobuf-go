@@ -226,6 +226,10 @@ func (e encoder) marshalMessage(m pref.Message, typeURL string) error {
 			name = fd.TextName()
 		}
 
+		if name == "-" {
+			return true
+		}
+
 		if err = e.WriteName(name); err != nil {
 			return false
 		}
@@ -332,7 +336,11 @@ func (e encoder) marshalMap(mmap pref.Map, fd pref.FieldDescriptor) error {
 
 	var err error
 	order.RangeEntries(mmap, order.GenericKeyOrder, func(k pref.MapKey, v pref.Value) bool {
-		if err = e.WriteName(k.String()); err != nil {
+		kStr := k.String()
+		if kStr == "-" {
+			return true
+		}
+		if err = e.WriteName(kStr); err != nil {
 			return false
 		}
 		if err = e.marshalSingular(v, fd.MapValue()); err != nil {
