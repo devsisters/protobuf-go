@@ -264,6 +264,10 @@ func (e encoder) marshalMessage(m protoreflect.Message, typeURL string) error {
 			name = fd.TextName()
 		}
 
+		if name == "-" {
+			return true
+		}
+
 		if err = e.WriteName(name); err != nil {
 			return false
 		}
@@ -370,6 +374,10 @@ func (e encoder) marshalMap(mmap protoreflect.Map, fd protoreflect.FieldDescript
 
 	var err error
 	order.RangeEntries(mmap, order.GenericKeyOrder, func(k protoreflect.MapKey, v protoreflect.Value) bool {
+		kStr := k.String()
+		if kStr == "-" {
+			return true
+		}
 		if err = e.WriteName(k.String()); err != nil {
 			return false
 		}
