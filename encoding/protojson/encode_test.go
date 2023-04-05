@@ -2521,6 +2521,61 @@ func TestMarshal(t *testing.T) {
   "optFixed64": 4,
   "optSfixed64": 5
 }`,
+	}, {
+		desc: "IgnorePrefix",
+		mo:   protojson.MarshalOptions{IgnorePrefix: "sInt"},
+		input: &pb3.Scalars{
+			SBool:   true,
+			SInt32:  1,
+			SInt64:  2,
+			SUint32: 3,
+			SUint64: 4,
+			SSint32: 5,
+			SString: "abc",
+		},
+		want: `{
+  "sBool": true,
+  "sUint32": 3,
+  "sUint64": "4",
+  "sSint32": 5,
+  "sString": "abc"
+}`,
+	}, {
+		desc: "IgnorePrefix: json_name",
+		mo:   protojson.MarshalOptions{IgnorePrefix: "foo"},
+		input: &pb3.JSONNames{
+			SString: "abc",
+		},
+		want: `{}`,
+	}, {
+		desc: "IgnorePrefix: not on map keys",
+		mo:   protojson.MarshalOptions{IgnorePrefix: "-"},
+		input: &pb3.Maps{
+			Int32ToStr: map[int32]string{
+				-1: "a",
+				0:  "b",
+				1:  "c",
+			},
+			StrToNested: map[string]*pb3.Nested{
+				"-aa": {SString: "a"},
+				"bb":  {SString: "b"},
+			},
+		},
+		want: `{
+  "int32ToStr": {
+    "-1": "a",
+    "0": "b",
+    "1": "c"
+  },
+  "strToNested": {
+    "-aa": {
+      "sString": "a"
+    },
+    "bb": {
+      "sString": "b"
+    }
+  }
+}`,
 	}}
 
 	for _, tt := range tests {

@@ -7,6 +7,7 @@ package protojson
 import (
 	"encoding/base64"
 	"fmt"
+	"strings"
 
 	"google.golang.org/protobuf/internal/encoding/json"
 	"google.golang.org/protobuf/internal/encoding/messageset"
@@ -105,6 +106,10 @@ type MarshalOptions struct {
 	// EmitInt64sAsNumber specifies whether to emit int64 and uint64 values
 	// as JSON numbers instead of strings.
 	EmitInt64sAsNumber bool
+
+	// IgnorePrefix is a prefix of the field names to ignore when marshaling.
+	// If empty, no fields are ignored.
+	IgnorePrefix string
 
 	// Resolver is used for looking up types when expanding google.protobuf.Any
 	// messages. If nil, this defaults to using protoregistry.GlobalTypes.
@@ -264,6 +269,10 @@ func (e encoder) marshalMessage(m protoreflect.Message, typeURL string) error {
 		name := fd.JSONName()
 		if e.opts.UseProtoNames {
 			name = fd.TextName()
+		}
+
+		if e.opts.IgnorePrefix != "" && strings.HasPrefix(name, e.opts.IgnorePrefix) {
+			return true
 		}
 
 		if err = e.WriteName(name); err != nil {
