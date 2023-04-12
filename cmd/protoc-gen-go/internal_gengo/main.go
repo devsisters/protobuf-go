@@ -880,11 +880,19 @@ func genMessageOneofWrapperTypes(g *protogen.GeneratedFile, f *fileInfo, m *mess
 
 			ty, _ := fieldGoType(g, f, field)
 			ty = strings.ReplaceAll(ty, "*", "")
-
 			if field.Message != nil {
 				params := make([]string, len(field.Message.Fields))
+				noGen := false
 				for i := 0; i < len(field.Message.Fields); i++ {
-					params[i] = makeParam(g, f, field.Message.Fields[i])
+					curField := field.Message.Fields[i]
+					if curField.Oneof != nil {
+						noGen = true
+						break
+					}
+					params[i] = makeParam(g, f, curField)
+				}
+				if noGen {
+					continue
 				}
 				g.P(fmt.Sprintf("func New%s%s (%s) *%s {", m.GoIdent.GoName, field.GoName, strings.Join(params, ","), m.GoIdent.GoName))
 				g.P(fmt.Sprintf("return &%s {", m.GoIdent.GoName))
