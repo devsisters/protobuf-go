@@ -7,6 +7,7 @@ package protojson
 import (
 	"encoding/base64"
 	"fmt"
+	"strings"
 
 	"google.golang.org/protobuf/internal/encoding/json"
 	"google.golang.org/protobuf/internal/encoding/messageset"
@@ -264,7 +265,7 @@ func (e encoder) marshalMessage(m protoreflect.Message, typeURL string) error {
 			name = fd.TextName()
 		}
 
-		if name == "-" {
+		if strings.HasPrefix(name, "-") {
 			return true
 		}
 
@@ -375,7 +376,7 @@ func (e encoder) marshalMap(mmap protoreflect.Map, fd protoreflect.FieldDescript
 	var err error
 	order.RangeEntries(mmap, order.GenericKeyOrder, func(k protoreflect.MapKey, v protoreflect.Value) bool {
 		kStr := k.String()
-		if kStr == "-" {
+		if strings.HasPrefix(kStr, "-") {
 			return true
 		}
 		if err = e.WriteName(k.String()); err != nil {
