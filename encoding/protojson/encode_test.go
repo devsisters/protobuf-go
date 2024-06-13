@@ -2499,6 +2499,28 @@ func TestMarshal(t *testing.T) {
     }
   ]
 }`,
+	}, {
+		desc:  "EmitInt64sAsNumber: proto3",
+		mo:    protojson.MarshalOptions{EmitInt64sAsNumber: true},
+		input: &pb3.Scalars{SInt64: 1, SUint64: 2, SSint64: 3, SFixed64: 4, SSfixed64: 5},
+		want: `{
+  "sInt64": 1,
+  "sUint64": 2,
+  "sSint64": 3,
+  "sFixed64": 4,
+  "sSfixed64": 5
+}`,
+	}, {
+		desc:  "EmitInt64sAsNumber: proto2",
+		mo:    protojson.MarshalOptions{EmitInt64sAsNumber: true},
+		input: &pb2.Scalars{OptInt64: proto.Int64(1), OptUint64: proto.Uint64(2), OptSint64: proto.Int64(3), OptFixed64: proto.Uint64(4), OptSfixed64: proto.Int64(5)},
+		want: `{
+  "optInt64": 1,
+  "optUint64": 2,
+  "optSint64": 3,
+  "optFixed64": 4,
+  "optSfixed64": 5
+}`,
 	}}
 
 	for _, tt := range tests {
