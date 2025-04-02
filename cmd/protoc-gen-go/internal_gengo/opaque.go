@@ -6,6 +6,7 @@ package internal_gengo
 
 import (
 	"fmt"
+	"path"
 	"strings"
 	"unicode"
 	"unicode/utf8"
@@ -28,6 +29,9 @@ func opaqueGenMessage(g *protogen.GeneratedFile, f *fileInfo, message *messageIn
 	leadingComments := appendDeprecationSuffix(message.Comments.Leading,
 		message.Desc.ParentFile(),
 		message.Desc.Options().(*descriptorpb.MessageOptions).GetDeprecated())
+	if path.Base(string(message.GoIdent.GoImportPath)) == gamedataPackageName {
+		g.P("type ", message.GoIdent, "List []*", message.GoIdent)
+	}
 	g.P(leadingComments,
 		"type ", message.GoIdent, " struct {")
 
@@ -1164,7 +1168,11 @@ func opaqueFieldGoType(g *protogen.GeneratedFile, f *fileInfo, message *messageI
 	}
 	switch {
 	case field.Desc.IsList():
-		goType = "[]" + goType
+		if goType[0] == '*' && path.Base(string(field.Message.GoIdent.GoImportPath)) == gamedataPackageName {
+			goType = goType[1:] + "List"
+		} else {
+			goType = "[]" + goType
+		}
 		pointer = false
 	case field.Desc.IsMap():
 		keyType, _ := opaqueFieldGoType(g, f, message, field.Message.Fields[0])
