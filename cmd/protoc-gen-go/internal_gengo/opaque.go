@@ -23,6 +23,29 @@ func opaqueGenMessageHook(g *protogen.GeneratedFile, f *fileInfo, message *messa
 	return true
 }
 
+func isComparableKind(kind protoreflect.Kind) bool {
+	switch kind {
+	case protoreflect.BoolKind,
+		protoreflect.EnumKind,
+		protoreflect.Int32Kind,
+		protoreflect.Sint32Kind,
+		protoreflect.Uint32Kind,
+		protoreflect.Int64Kind,
+		protoreflect.Sint64Kind,
+		protoreflect.Uint64Kind,
+		protoreflect.Sfixed32Kind,
+		protoreflect.Fixed32Kind,
+		protoreflect.FloatKind,
+		protoreflect.Sfixed64Kind,
+		protoreflect.Fixed64Kind,
+		protoreflect.DoubleKind,
+		protoreflect.StringKind:
+		return true
+	default:
+		return false
+	}
+}
+
 func opaqueGenMessage(g *protogen.GeneratedFile, f *fileInfo, message *messageInfo) {
 	// Message type declaration.
 	g.AnnotateSymbol(message.GoIdent.GoName, protogen.Annotation{Location: message.Location})
@@ -31,6 +54,33 @@ func opaqueGenMessage(g *protogen.GeneratedFile, f *fileInfo, message *messageIn
 		message.Desc.Options().(*descriptorpb.MessageOptions).GetDeprecated())
 	if path.Base(string(message.GoIdent.GoImportPath)) == gamedataPackageName {
 		g.P("type ", message.GoIdent, "List []*", message.GoIdent)
+
+		for _, field := range message.Fields {
+			if field.GoName == "Id" && isComparableKind(field.Desc.Kind()) {
+				goType, _ := opaqueFieldGoType(g, f, message, field)
+
+				g.AnnotateSymbol(message.GoIdent.GoName+"List.FindById", protogen.Annotation{Location: field.Location})
+				g.P("func (x ", message.GoIdent, "List) FindById(id ", goType, ") (*", message.GoIdent, ", bool) {")
+				g.P("for _, xx := range x {")
+				g.P("if xx.GetId() == id {")
+				g.P("return xx, true")
+				g.P("}")
+				g.P("}")
+				g.P("return nil, false")
+				g.P("}")
+				g.P()
+
+				g.AnnotateSymbol(message.GoIdent.GoName+"List.Get", protogen.Annotation{Location: field.Location})
+				g.P("func (x ", message.GoIdent, "List) Get(id ", goType, ") *", message.GoIdent, "{")
+				g.P("xx, ok := x.FindById(id)")
+				g.P("if ok {")
+				g.P("return xx")
+				g.P("}")
+				g.P("panic(\"Not exist: ", message.GoIdent, "\")")
+				g.P("}")
+				g.P()
+			}
+		}
 	}
 	g.P(leadingComments,
 		"type ", message.GoIdent, " struct {")
