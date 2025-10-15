@@ -11,6 +11,7 @@ import (
 	"go/parser"
 	"go/token"
 	"math"
+	"path"
 	"strconv"
 	"strings"
 	"unicode"
@@ -79,6 +80,8 @@ func setToOpaque(msg *protogen.Message) {
 		setToOpaque(nested)
 	}
 }
+
+const gamedataPackageName = "gamedata"
 
 // GenerateFile generates the contents of a .pb.go file.
 //
@@ -413,6 +416,9 @@ func genMessage(g *protogen.GeneratedFile, f *fileInfo, m *messageInfo) {
 	leadingComments := appendDeprecationSuffix(m.Comments.Leading,
 		m.Desc.ParentFile(),
 		m.Desc.Options().(*descriptorpb.MessageOptions).GetDeprecated())
+	if path.Base(string(m.GoIdent.GoImportPath)) == gamedataPackageName {
+		g.P("type ", m.GoIdent, "List []*", m.GoIdent)
+	}
 	g.P(leadingComments,
 		"type ", m.GoIdent, " struct {")
 	genMessageFields(g, f, m)
@@ -484,6 +490,10 @@ func genMessageField(g *protogen.GeneratedFile, f *fileInfo, m *messageInfo, fie
 	goType, pointer := fieldGoType(g, f, field)
 	if pointer {
 		goType = "*" + goType
+	}
+	// make gamedata list for findById
+	if goType[:3] == "[]*" && path.Base(string(field.Message.GoIdent.GoImportPath)) == gamedataPackageName {
+		goType = goType[3:] + "List"
 	}
 	tags := structTags{
 		{"protobuf", fieldProtobufTagValue(field)},
@@ -653,6 +663,26 @@ func genMessageGetterMethods(g *protogen.GeneratedFile, f *fileInfo, m *messageI
 			g.P("return ", defaultValue)
 			g.P("}")
 		default:
+			if field.GoName == "Id" && path.Base(string(m.GoIdent.GoImportPath)) == gamedataPackageName {
+				g.P(leadingComments, "func (x ", m.GoIdent, "List) FindById (id ", goType, ") (*", m.GoIdent, ", bool) {")
+				g.P("for _, xx := range x {")
+				g.P("if xx.Id == id {")
+				g.P("return xx, true")
+				g.P("}")
+				g.P("}")
+				g.P("return nil, false")
+				g.P("}")
+				g.P()
+
+				g.P(leadingComments, "func (x ", m.GoIdent, "List) Get (id ", goType, ") *", m.GoIdent, "{")
+				g.P("xx, ok := x.FindById(id)")
+				g.P("if ok {")
+				g.P("return xx")
+				g.P("}")
+				g.P("panic(\"Not exist: ", m.GoIdent, "\")")
+				g.P("}")
+				g.P()
+			}
 			g.P(leadingComments, "func (x *", m.GoIdent, ") Get", field.GoName, "() ", goType, " {")
 			if !field.Desc.HasPresence() || defaultValue == "nil" {
 				g.P("if x != nil {")
@@ -833,11 +863,25 @@ func genMessageOneofWrapperTypes(g *protogen.GeneratedFile, f *fileInfo, m *mess
 		if oneof.Desc.IsSynthetic() {
 			continue
 		}
+
+		typedTypeName := oneof.GoIdent.GoName + "Type"
+		g.P("type ", typedTypeName, " string")
+		g.P()
+
 		ifName := oneofInterfaceName(oneof)
 		g.P("type ", ifName, " interface {")
 		g.P(ifName, "()")
+		g.P("Type() ", typedTypeName)
 		g.P("}")
 		g.P()
+
+		g.P("const (")
+		for _, field := range oneof.Fields {
+			g.P(fmt.Sprintf("%s_%s %s = \"%s\"", typedTypeName, field.GoName, typedTypeName, field.GoIdent.GoName))
+		}
+		g.P(")")
+		g.P("")
+
 		for _, field := range oneof.Fields {
 			g.AnnotateSymbol(field.GoIdent.GoName, protogen.Annotation{Location: field.Location})
 			g.AnnotateSymbol(field.GoIdent.GoName+"."+field.GoName, protogen.Annotation{Location: field.Location})
@@ -857,9 +901,51 @@ func genMessageOneofWrapperTypes(g *protogen.GeneratedFile, f *fileInfo, m *mess
 				trailingComment(field.Comments.Trailing))
 			g.P("}")
 			g.P()
+
+			ty, _ := fieldGoType(g, f, field)
+			ty = strings.ReplaceAll(ty, "*", "")
+			if field.Message != nil {
+				params := make([]string, len(field.Message.Fields))
+				noGen := false
+				for i := 0; i < len(field.Message.Fields); i++ {
+					curField := field.Message.Fields[i]
+					if curField.Oneof != nil {
+						noGen = true
+						break
+					}
+					params[i] = makeParam(g, f, curField)
+				}
+				if noGen {
+					continue
+				}
+				g.P(fmt.Sprintf("func New%s%s (%s) *%s {", m.GoIdent.GoName, field.GoName, strings.Join(params, ","), m.GoIdent.GoName))
+				g.P(fmt.Sprintf("return &%s {", m.GoIdent.GoName))
+				g.P(fmt.Sprintf("%s: &%s {", field.Oneof.GoName, field.GoIdent.GoName))
+				g.P(fmt.Sprintf("%s: &%s {", field.GoName, ty))
+				for i := 0; i < len(field.Message.Fields); i++ {
+					f := field.Message.Fields[i]
+					g.P(fmt.Sprintf("%s: p%s,", f.GoName, f.GoName))
+				}
+				g.P("},")
+				g.P("},")
+				g.P("}")
+				g.P("}")
+			} else {
+				g.P(fmt.Sprintf("func New%s%s (p %s) *%s {", m.GoIdent.GoName, field.GoName, ty, m.GoIdent.GoName))
+				g.P(fmt.Sprintf("return &%s {", m.GoIdent.GoName))
+				g.P(fmt.Sprintf("%s: &%s {", field.Oneof.GoName, field.GoIdent.GoName))
+				g.P(fmt.Sprintf("%s: p,", field.GoName))
+				g.P("},")
+				g.P("}")
+				g.P("}")
+			}
+			g.P()
 		}
 		for _, field := range oneof.Fields {
 			g.P("func (*", field.GoIdent, ") ", ifName, "() {}")
+			g.P()
+
+			g.P(fmt.Sprintf("func (*%s) Type() %s { return \"%s\" }", field.GoIdent.GoName, typedTypeName, field.GoIdent.GoName))
 			g.P()
 		}
 	}
@@ -929,4 +1015,13 @@ func (c trailingComment) String() string {
 		return ""
 	}
 	return s
+}
+
+func makeParam(g *protogen.GeneratedFile, f *fileInfo, field *protogen.Field) string {
+	ty, isPtr := fieldGoType(g, f, field)
+	format := "p%s %s"
+	if isPtr {
+		format = "p%s *%s"
+	}
+	return fmt.Sprintf(format, field.GoName, ty)
 }
